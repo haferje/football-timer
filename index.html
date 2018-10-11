@@ -1,0 +1,161 @@
+<html>
+	<header>
+		<title></title>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.7.2/Chart.bundle.min.js"></script>
+		<style>
+			button {
+				width: 100px;
+				height: 100px;
+			}
+		</style>
+	</header>
+	<body>
+
+		<button id="gameplay">Game play</button>
+		<button id="betweenplay">Between play</button>
+		<button id="replay">Replay</button>
+		<button id="timeout">Timeout</button>
+		<button id="commercials">Commercials</button>
+
+		<div style="width:600px">
+			<canvas id="pieChart"></canvas>
+		</div>
+
+	</body>
+	<script>
+		/*
+			TODO:
+			render total time
+			show which button is active
+			larger buttons with color/icon
+			bar chart for each new timer change
+			collect each timer history so we can see the flame chart
+		*/
+		class Clock {
+			constructor(buttonID) {
+				let self = this;
+
+				this.elapsed = 0;
+				this.button = document.getElementById(buttonID);
+
+				this.button.onclick = function() {
+					timer.change(self);
+				};
+			}
+
+			tick(elapsed) {
+				this.elapsed += elapsed;
+			}
+		}
+
+		class Timer {
+			constructor() {
+				this.clock = null;
+				this.startTime = new Date();
+			}
+
+			change(clock) {
+				this.clock = clock;
+				this.startTime = new Date();
+			}
+
+			update() {
+				if (this.clock == null)
+					return;
+
+				let now = new Date();
+				let elapsed = now - this.startTime; // in ms
+				this.startTime = now;
+
+				this.clock.tick(elapsed);
+			}
+		}
+
+		class PieChart {
+			constructor() {
+				this.chart = new Chart("pieChart", {
+					type: 'pie',
+					data: {
+						datasets: [{
+							data: this.getData(),
+							backgroundColor: [
+								window.chartColors.red,
+								window.chartColors.orange,
+								window.chartColors.yellow,
+								window.chartColors.green,
+								window.chartColors.blue,
+							],
+						}],
+						labels: [
+							"gameplay",
+							"betweenplay",
+							"replay",
+							"timeout",
+							"commercials",
+						],
+					},
+					options: {
+						tooltips: {
+							callbacks: {
+								// custom tooltip to render "Label: HhMmSs"
+								label: function(tooltipItem, data) {
+									var label = data.labels[tooltipItem.index];
+									var value = data.datasets[0].data[tooltipItem.index];
+
+									var seconds = Math.round(value/1000);
+
+									var s = seconds % 60;
+									var m = Math.floor(seconds / 60) % 60;
+									var h = Math.floor(seconds / (60*60));
+
+									return `${label}: ${h}h${m}m${s}s`;
+								}
+							}
+						}
+					}
+				});
+			}
+
+			getData() {
+				return [
+					gameplay.elapsed,
+					betweenplay.elapsed,
+					replay.elapsed,
+					timeout.elapsed,
+					commercials.elapsed,
+				];
+			}
+
+			update() {
+				this.chart.data.datasets[0].data = this.getData();
+				this.chart.update();
+			}
+		};
+
+		let timer = new Timer();
+
+		let gameplay = new Clock("gameplay");
+		let betweenplay = new Clock("betweenplay");
+		let replay = new Clock("replay");
+		let timeout = new Clock("timeout");
+		let commercials = new Clock("commercials");
+
+		window.chartColors = {
+			red: 'rgb(255, 99, 132)',
+			orange: 'rgb(255, 159, 64)',
+			yellow: 'rgb(255, 205, 86)',
+			green: 'rgb(75, 192, 192)',
+			blue: 'rgb(54, 162, 235)',
+			purple: 'rgb(153, 102, 255)',
+			grey: 'rgb(201, 203, 207)'
+		};
+
+		let pieChart = new PieChart();
+
+		setInterval(function() {
+			timer.update();
+			pieChart.update();
+		}, 1000);
+
+	</script>
+</html>
