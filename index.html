@@ -2,49 +2,75 @@
 	<header>
 		<title></title>
 		<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.7.2/Chart.bundle.min.js"></script>
+		<script src="https://lodash.com/vendor/cdn.jsdelivr.net/npm/lodash@4.17.10/lodash.min.js"></script>
 		<style>
+			.grid-container {
+				display: grid;
+				height: 100%;
+				grid-template-columns: 1fr 1fr;
+				grid-template-rows: 1fr 1fr;
+				grid-gap: 1px 1px;
+				grid-template-areas: "buttons pie" "bar bar";
+			}
+
+			.buttons { grid-area: buttons; }
+
+			.pie { grid-area: pie; }
+
+			.bar { grid-area: bar; }
+
 			button {
 				width: 100px;
 				height: 100px;
+			}
+			button.active {
+				border-style: inset;
 			}
 		</style>
 	</header>
 	<body>
 
-		<button id="gameplay">Game play</button>
-		<button id="betweenplay">Between play</button>
-		<button id="replay">Replay</button>
-		<button id="timeout">Timeout</button>
-		<button id="commercials">Commercials</button>
-
-		<div style="width:600px">
-			<canvas id="pieChart"></canvas>
+		<div class="grid-container">
+			<div class="buttons">
+				<button id="gameplay">Game play</button>
+				<button id="betweenplay">Between play</button>
+				<button id="replay">Replay</button>
+				<button id="timeout">Timeout</button>
+				<button id="commercials">Commercials</button>
+			</div>
+			<div class="pie">
+				<canvas id="pieChart"></canvas>
+			</div>
+			<div class="bar">
+				<canvas id="barChart"></canvas>
+			</div>
 		</div>
+
+
 
 	</body>
 	<script>
 		/*
 			TODO:
 			render total time
-			show which button is active
-			larger buttons with color/icon
-			bar chart for each new timer change
-			collect each timer history so we can see the flame chart
 		*/
 		class Clock {
-			constructor(buttonID) {
+			constructor(id, color) {
 				let self = this;
 
-				this.elapsed = 0;
-				this.button = document.getElementById(buttonID);
+				this.id = id;
+				this.color = color;
+				this.button = document.getElementById(id);
 
 				this.button.onclick = function() {
+					// activate button
+					var btns = document.querySelectorAll("button");
+					_.each(btns, btn => { btn.classList.remove("active")});
+					this.classList.add("active");
+
+					// change clocks
 					timer.change(self);
 				};
-			}
-
-			tick(elapsed) {
-				this.elapsed += elapsed;
 			}
 		}
 
@@ -52,22 +78,53 @@
 			constructor() {
 				this.clock = null;
 				this.startTime = new Date();
+				this.history = [];
 			}
 
 			change(clock) {
+				// if same clock
+				if (clock === this.clock)
+					return;
+
+				this.lap();
 				this.clock = clock;
-				this.startTime = new Date();
+				this.reset();
 			}
 
-			update() {
+			lap() {
 				if (this.clock == null)
 					return;
 
-				let now = new Date();
-				let elapsed = now - this.startTime; // in ms
-				this.startTime = now;
+				this.history.push({
+					clock: this.clock,
+					elapsed: this.elapsed(),
+				});
+			}
 
-				this.clock.tick(elapsed);
+			reset() {
+				this.startTime = new Date();
+			}
+
+			elapsed() {
+				const now = new Date();
+				const elapsed = now - this.startTime; // in ms
+				return elapsed;
+			}
+
+			laps() {
+				if (this.clock == null)
+					return [];
+
+				// historic data
+				let history = this.history.slice(0);
+
+				// current clock
+				history.push({
+					clock: this.clock,
+					elapsed: this.elapsed(),
+				});
+
+				return history;
 			}
 		}
 
@@ -79,19 +136,19 @@
 						datasets: [{
 							data: this.getData(),
 							backgroundColor: [
-								window.chartColors.red,
-								window.chartColors.orange,
-								window.chartColors.yellow,
-								window.chartColors.green,
-								window.chartColors.blue,
+								window.chartColors[gameplay.color],
+								window.chartColors[betweenplay.color],
+								window.chartColors[replay.color],
+								window.chartColors[timeout.color],
+								window.chartColors[commercials.color],
 							],
 						}],
 						labels: [
-							"gameplay",
-							"betweenplay",
-							"replay",
-							"timeout",
-							"commercials",
+							gameplay.id,
+							betweenplay.id,
+							replay.id,
+							timeout.id,
+							commercials.id,
 						],
 					},
 					options: {
@@ -117,12 +174,14 @@
 			}
 
 			getData() {
+				let laps = timer.laps();
+
 				return [
-					gameplay.elapsed,
-					betweenplay.elapsed,
-					replay.elapsed,
-					timeout.elapsed,
-					commercials.elapsed,
+					_(laps).filter({ clock: gameplay }).sumBy("elapsed"),
+					_(laps).filter({ clock: betweenplay }).sumBy("elapsed"),
+					_(laps).filter({ clock: replay }).sumBy("elapsed"),
+					_(laps).filter({ clock: timeout }).sumBy("elapsed"),
+					_(laps).filter({ clock: commercials }).sumBy("elapsed"),
 				];
 			}
 
@@ -132,13 +191,80 @@
 			}
 		};
 
+		class BarChart {
+			constructor() {
+				this.chart = new Chart("barChart", {
+					type: 'bar',
+					data: {
+						datasets: this.getData(),
+					},
+					options: {
+						maintainAspectRatio: false,
+						legend: {
+							display: false,
+						},
+						animation: {
+							duration: 0,
+						},
+						scales: {
+							yAxes: [{
+								ticks: {
+									beginAtZero: true,
+								}
+							}]
+						},
+						tooltips: {
+							callbacks: {
+								// custom tooltip to render "Label: HhMmSs"
+								label: function(tooltipItem, data) {
+									var label = data.datasets[tooltipItem.datasetIndex].label;
+									var value = data.datasets[tooltipItem.datasetIndex].data[0];
+									console.log(value);
+
+									// var seconds = Math.round(value/1000);
+									// data is already in seconds
+									var seconds = value;
+
+									var s = seconds % 60;
+									var m = Math.floor(seconds / 60) % 60;
+									var h = Math.floor(seconds / (60*60));
+
+									return `${label}: ${h}h${m}m${s}s`;
+								}
+							}
+						},
+					}
+				});
+			}
+
+			getData() {
+				let laps = timer.laps();
+
+				let datasets = _.map(laps, lap => ({
+						label: lap.clock.id,
+						data: [ Math.round(lap.elapsed/1000) ],
+						backgroundColor: window.chartColors[lap.clock.color],
+					})
+				);
+
+				return datasets;
+			}
+
+			update() {
+				this.chart.data.datasets = this.getData();
+				this.chart.update();
+			}
+		};
+
+
+
 		let timer = new Timer();
 
-		let gameplay = new Clock("gameplay");
-		let betweenplay = new Clock("betweenplay");
-		let replay = new Clock("replay");
-		let timeout = new Clock("timeout");
-		let commercials = new Clock("commercials");
+		let gameplay = new Clock("gameplay", "red");
+		let betweenplay = new Clock("betweenplay", "orange");
+		let replay = new Clock("replay", "yellow");
+		let timeout = new Clock("timeout", "green");
+		let commercials = new Clock("commercials", "blue");
 
 		window.chartColors = {
 			red: 'rgb(255, 99, 132)',
@@ -151,10 +277,14 @@
 		};
 
 		let pieChart = new PieChart();
+		let barChart = new BarChart();
 
 		setInterval(function() {
-			timer.update();
+			if (timer.clock == null)
+				return;
+
 			pieChart.update();
+			barChart.update();
 		}, 1000);
 
 	</script>
