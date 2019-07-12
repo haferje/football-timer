@@ -14,7 +14,8 @@ I created this tool to prove to a friend how little gameplay there actually was 
 
 Here are the resulting times for coverage of *half* of a 3 hour long professional football game, during the 2nd and 3rd quarter.
 
-Teams: Cincinnati Bengals @ Kansas City Chiefs
+Game: Cincinnati Bengals @ Kansas City Chiefs
+
 Time: 8:20pm airing
 
 - Gameplay: 8m 25s
@@ -37,6 +38,7 @@ Total time (2 quarters): 1h 47m 41s
 #### Use
 
 1. Click the timer button corresponding to the game state shown on TV.
+	
 	Click the button at the start of a change in state.
 	- When the ball is in motion, click "Game play".
 	- When a whistle sounds to end the play, click "Between play".
